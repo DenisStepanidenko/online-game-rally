@@ -9,8 +9,8 @@ services:
     environment:
       POSTGRES_DB:
       POSTGRES_USER:
-      POSTGRES_PASSWORD: 
+      POSTGRES_PASSWORD:
     volumes:
       - your_name:/var/lib/postgresql/data
     ports:
-      - "5405:5432"
+      - 
