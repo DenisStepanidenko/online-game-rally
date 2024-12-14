@@ -1,0 +1,16 @@
+version: "3.9"
+volumes:
+  pg_rally:
+
+services:
+  db_for_rally:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_DB: db_rally
+      POSTGRES_USER: denis
+      POSTGRES_PASSWORD: starbest2003
+    volumes:
+      - pg_rally:/var/lib/postgresql/data
+    ports:
+      - "5405:5432"
