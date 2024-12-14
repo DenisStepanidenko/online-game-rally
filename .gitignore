@@ -34,4 +34,4 @@ build/
 
 # BD
 docker-compose.yml
-application.properties
+/src/main/resources/application.properties
