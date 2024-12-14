@@ -59,19 +59,6 @@
             <scope>test</scope>
         </dependency>
 
-
-        <!--		Зависимости для графики -->
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-controls</artifactId>
-            <version>17</version>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-fxml</artifactId>
-            <version>17</version>
-        </dependency>
-
     </dependencies>
 
     <build>
