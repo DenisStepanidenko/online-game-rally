@@ -44,7 +44,10 @@ public class Server {
                     ClientHandler clientHandler = context.getBean(ClientHandler.class);
                     boolean flag = clientHandler.initializeSocket(clientSocket);
                     if (flag) {
+                        logger.info("Открытие сокетов ввода/вывода у клиента " + clientSocket.getInetAddress() + " произошло успешно.");
                         players.add(clientHandler);
+                        logger.info("Клиент " + clientSocket.getInetAddress() + " добавлен в список участников сервера");
+                        logger.info("Количество клиентов на сервере " + players.size());
                         clientHandler.setServer(this);
                         clientHandler.start();
                     } else {
