@@ -1,5 +1,6 @@
 package DM.ServerRally.executor;
 
+import DM.ServerRally.controllers.GameManager;
 import DM.ServerRally.server.Server;
 import DM.ServerRally.user.model.User;
 import DM.ServerRally.user.service.UserService;
@@ -31,11 +32,12 @@ public class ClientHandler extends Thread {
     private PrintWriter output;
     private String username;
     private String password;
+    private GameManager gameManager;
 
 
-    public ClientHandler(UserService userService) {
+    public ClientHandler(UserService userService, GameManager gameManager) {
         this.userService = userService;
-
+        this.gameManager = gameManager;
     }
 
     public boolean initializeSocket(Socket clientSocket) {
@@ -97,6 +99,20 @@ public class ClientHandler extends Thread {
                             logger.info("Отправлено сообщение PASS_ACK_FAIL клиенту " + clientSocket.getInetAddress());
                         }
                     }
+                } else if (message.equals("MULTIPLAY")) {
+                    Optional<String> lobbies = gameManager.getLobbyAsJson();
+
+                    lobbies.ifPresentOrElse(
+                            jsonLobbies -> {
+                                output.println("MULTIPLAY_ACK_SUCCESS " + jsonLobbies);
+                                logger.info("Отправлено сообщение MULTIPLAY_ACK_SUCCESS " + jsonLobbies + " клиенту " + clientSocket.getInetAddress());
+                            },
+                            () -> {
+                                output.println("MULTIPLAY_ACK_FAIL");
+                                logger.info("Отправлено сообщение MULTIPLAY_ACK_FAIL клиенту " + clientSocket.getInetAddress());
+                            }
+                    );
+
                 }
 
 

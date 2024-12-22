@@ -1,5 +1,6 @@
 package DM.ServerRally.server;
 
+import DM.ServerRally.controllers.GameManager;
 import DM.ServerRally.executor.ClientHandler;
 import DM.ServerRally.serverConfig.ServerConfig;
 import lombok.Getter;
@@ -24,15 +25,19 @@ public class Server {
 
 
     private final ApplicationContext context;
+    private final GameManager gameManager;
 
     @Autowired
-    public Server(ApplicationContext context) {
+    public Server(ApplicationContext context, GameManager gameManager) {
         this.context = context;
+        this.gameManager = gameManager;
     }
 
     public void start() {
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             logger.info("Сервер запущен на порту " + PORT);
+
+            gameManager.initializeStartLobbies();
 
             while (true) {
 

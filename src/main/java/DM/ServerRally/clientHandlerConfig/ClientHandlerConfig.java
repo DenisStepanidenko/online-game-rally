@@ -1,6 +1,7 @@
 package DM.ServerRally.clientHandlerConfig;
 
 
+import DM.ServerRally.controllers.GameManager;
 import DM.ServerRally.executor.ClientHandler;
 import DM.ServerRally.user.service.UserService;
 import org.springframework.context.annotation.Bean;
@@ -12,8 +13,8 @@ public class ClientHandlerConfig {
 
     @Bean
     @Scope(scopeName = "prototype")
-    public ClientHandler getClientHandler(UserService userService) {
-        return new ClientHandler(userService);
+    public ClientHandler getClientHandler(UserService userService, GameManager gameManager) {
+        return new ClientHandler(userService, gameManager);
     }
 
 }
