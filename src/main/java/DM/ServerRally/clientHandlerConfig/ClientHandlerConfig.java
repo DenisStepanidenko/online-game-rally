@@ -1,4 +1,4 @@
-package DM.ServerRally.configuration;
+package DM.ServerRally.clientHandlerConfig;
 
 
 import DM.ServerRally.executor.ClientHandler;
