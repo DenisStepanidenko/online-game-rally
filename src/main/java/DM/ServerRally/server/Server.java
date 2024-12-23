@@ -68,6 +68,8 @@ public class Server {
                 }
             }
         } catch (IOException ex) {
+            gameManager.shutdown();
+            logger.info("Работа метода checkLobbiesForGameStart объекта GameManager завершилась");
             logger.error("Произошла ошибка при работе сервера " + ex.getMessage());
         }
     }

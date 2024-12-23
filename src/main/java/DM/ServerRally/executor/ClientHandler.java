@@ -1,6 +1,7 @@
 package DM.ServerRally.executor;
 
 import DM.ServerRally.controllers.GameManager;
+import DM.ServerRally.lobby.Lobby;
 import DM.ServerRally.server.Server;
 import DM.ServerRally.user.model.User;
 import DM.ServerRally.user.service.UserService;
@@ -8,8 +9,6 @@ import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 
 import java.io.BufferedReader;
@@ -33,6 +32,7 @@ public class ClientHandler extends Thread {
     private String username;
     private String password;
     private GameManager gameManager;
+    private Lobby lobby;
 
 
     public ClientHandler(UserService userService, GameManager gameManager) {
@@ -113,6 +113,40 @@ public class ClientHandler extends Thread {
                             }
                     );
 
+                } else if (message.startsWith("JOIN_LOBBY_ID")) {
+                    Integer lobbyId = Integer.valueOf(message.split("/")[1]);
+
+                    // TODO: валидация того, что лобби существует по такому id
+                    Lobby lobby = gameManager.findById(lobbyId);
+
+
+                    // если игроков < 2, но игра уже идёт, нужно тоже возвращать такой статус
+                    if (lobby.isStartingGame()) {
+                        output.println("LOBBY_START_GAME");
+                        logger.info("Отправлено сообщение LOBBY_START_GAME клиенту " + clientSocket.getInetAddress());
+                    } else if (lobby.getCountOfPlayersInLobby() == 2) {
+                        output.println("FULL_LOBBY_ERR");
+                        logger.info("Отправлено сообщение FULL_LOBBY_ERR клиенту " + clientSocket.getInetAddress());
+                    } else {
+                        boolean flag = lobby.incrementCountOfPlayersInLobby();
+                        if (flag) {
+                            this.lobby = lobby;
+                            lobby.setPlayer(this);
+                            output.println("JOIN_LOBBY_ID_ACK_SUCCESS");
+                            logger.info("Отправлено сообщение JOIN_LOBBY_ID_ACK_SUCCESS клиенту " + clientSocket.getInetAddress());
+                        } else {
+                            output.println("FULL_LOBBY_ERR");
+                            logger.info("Отправлено сообщение FULL_LOBBY_ERR клиенту " + clientSocket.getInetAddress());
+                        }
+                    }
+                } else if (message.equals("READY")) {
+
+                    if (lobby.getPlayer1Name().equals(username)) {
+                        lobby.setReadyPlayer1(true);
+                    } else {
+                        lobby.setReadyPlayer2(true);
+                    }
+                    logger.info("Клиент " + clientSocket.getInetAddress() + " подтвердил готовность игры в лобби " + lobby.getNameOfLobby());
                 }
 
 
@@ -122,6 +156,15 @@ public class ClientHandler extends Thread {
             logger.error("Ошибка при обработке клиента: " + e.getMessage());
         } finally {
             try {
+
+                if (!Objects.isNull(lobby)) {
+                    lobby.decrementCountOfPlayersInLobby();
+                    if (!Objects.isNull(lobby.getPlayer1()) && lobby.getPlayer1().getUsername().equals(username)) {
+                        lobby.setPlayer1(null);
+                    } else {
+                        lobby.setPlayer2(null);
+                    }
+                }
                 // перед закрытием сокета удалим из списка игроков
                 server.getPlayers().remove(this);
                 logger.info("Клиент " + this.getClientSocket().getInetAddress() + " удалён из списка клиентов сервера");
@@ -129,10 +172,23 @@ public class ClientHandler extends Thread {
                 logger.info("Соединение с клиентом " + clientSocket.getInetAddress() + " закрыто");
                 clientSocket.close();
                 logger.info("Сокет с клиентом " + clientSocket.getInetAddress() + " успешно закрыт");
+                input.close();
+                logger.info("Поток ввода с клиентом " + clientSocket.getInetAddress() + " успешно закрыт");
+                output.close();
+                logger.info("Поток вывода с клиентом " + clientSocket.getInetAddress() + " успешно закрыт");
                 this.interrupt();
             } catch (IOException e) {
                 logger.error("Ошибка при закрытии сокета: " + e.getMessage());
             }
+        }
+    }
+
+    public void sendMessageToClient(String message) {
+        try {
+            output.println(message);
+            logger.info("Отправлено сообщение " + message + " клиенту " + clientSocket.getInetAddress());
+        } catch (Exception ex) {
+            logger.info("Произошла ошибка при отправке сообщения " + message + " клиенту " + clientSocket.getInetAddress());
         }
     }
 
