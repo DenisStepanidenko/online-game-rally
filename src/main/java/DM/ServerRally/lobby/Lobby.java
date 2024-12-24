@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 @Getter
 @Setter
 public class Lobby {
+    @JsonIgnore
     private final Logger logger = LoggerFactory.getLogger(Lobby.class);
     @JsonIgnore
     private static int counterLobbies = 1;
@@ -53,6 +54,7 @@ public class Lobby {
         counterLobbies++;
     }
 
+    @JsonIgnore
     private ScheduledExecutorService readyTimer;
 
     @JsonProperty("player1")
@@ -142,25 +144,29 @@ public class Lobby {
 
         // мы зашли в этот метод, если хотя бы один игрок не подтвердил готовность играть
 
-        if (!readyPlayer1) {
+        if (!readyPlayer1 && !readyPlayer2) {
             logger.info("Клиент " + player1.getClientSocket().getInetAddress() + " не подтвердил готовность к игре в лобби " + nameOfLobby);
-            if (!Objects.isNull(player2)) {
-                player2.sendMessageToClient("LEFT_JOINED");
-            }
-            player1.sendMessageToClient("AFK_TIMEOUT");
-            player1.setLobby(null);
-            player1 = null;
-            decrementCountOfPlayersInLobby();
-        }
-
-        if (!readyPlayer2) {
             logger.info("Клиент " + player2.getClientSocket().getInetAddress() + " не подтвердил готовность к игре в лобби " + nameOfLobby);
+            player1.setLobby(null);
+            player2.setLobby(null);
+            this.setPlayer1(null);
+            this.setPlayer2(null);
+            decrementCountOfPlayersInLobby();
+            decrementCountOfPlayersInLobby();
+        } else if (!readyPlayer2) {
+
             if (!Objects.isNull(player1)) {
                 player1.sendMessageToClient("LEFT_JOINED");
             }
             player2.setLobby(null);
-            player2.sendMessageToClient("AFK_TIMEOUT");
-            player2 = null;
+            this.setPlayer2(null);
+            decrementCountOfPlayersInLobby();
+        } else {
+            if (!Objects.isNull(player2)) {
+                player2.sendMessageToClient("LEFT_JOINED");
+            }
+            player1.setLobby(null);
+            this.setPlayer1(null);
             decrementCountOfPlayersInLobby();
         }
 

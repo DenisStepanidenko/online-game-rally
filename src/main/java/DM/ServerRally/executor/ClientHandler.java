@@ -140,13 +140,20 @@ public class ClientHandler extends Thread {
                         }
                     }
                 } else if (message.equals("READY")) {
+                    // TODO: лобби может быть null'ом, рассмотреть этот момент
 
-                    if (lobby.getPlayer1Name().equals(username)) {
-                        lobby.setReadyPlayer1(true);
+                    if (Objects.isNull(lobby)) {
+                        // значит lobby была занулена
+                        output.println("AFK_TIMEOUT");
                     } else {
-                        lobby.setReadyPlayer2(true);
+                        if (lobby.getPlayer1Name().equals(username)) {
+                            lobby.setReadyPlayer1(true);
+                        } else {
+                            lobby.setReadyPlayer2(true);
+                        }
+                        logger.info("Клиент " + clientSocket.getInetAddress() + " подтвердил готовность игры в лобби " + lobby.getNameOfLobby());
                     }
-                    logger.info("Клиент " + clientSocket.getInetAddress() + " подтвердил готовность игры в лобби " + lobby.getNameOfLobby());
+
                 }
 
 
@@ -186,6 +193,7 @@ public class ClientHandler extends Thread {
     public void sendMessageToClient(String message) {
         try {
             output.println(message);
+            output.flush();
             logger.info("Отправлено сообщение " + message + " клиенту " + clientSocket.getInetAddress());
         } catch (Exception ex) {
             logger.info("Произошла ошибка при отправке сообщения " + message + " клиенту " + clientSocket.getInetAddress());
