@@ -8,6 +8,8 @@ import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -56,6 +58,13 @@ public class Lobby {
 
     @JsonIgnore
     private ScheduledExecutorService readyTimer;
+    @JsonIgnore
+    private ScheduledExecutorService player1Timer;
+    @JsonIgnore
+    private ScheduledExecutorService player2Timer;
+    @JsonIgnore
+    private long startGame;
+
 
     @JsonProperty("player1")
     public String getPlayer1Name() {
@@ -66,6 +75,49 @@ public class Lobby {
     public String getPlayer2Name() {
         return !Objects.isNull(player2) ? player2.getUsername() : null;
     }
+
+    /**
+     * Игровое поле
+     */
+    @JsonIgnore
+    private List<String> player1Field = new ArrayList<>();
+    @JsonIgnore
+    private List<String> player2Field = new ArrayList<>();
+
+    /**
+     * Позиция игроков
+     */
+    @JsonIgnore
+    private int player1Position = 1;
+    @JsonIgnore
+    private int player2Position = 1;
+
+    /**
+     * Скорость игроков
+     */
+    @JsonIgnore
+    private long player1Speed = 1000;
+    @JsonIgnore
+    private long player2Speed = 1000;
+
+    /**
+     * Время, когда скорость игрока вернётся к норме
+     */
+    @JsonIgnore
+    private long player1SpeedResetTime = 0;
+    @JsonIgnore
+    private long player2SpeedResetTime = 0;
+
+    /**
+     * Время прохождения трассы игроками
+     */
+    @JsonIgnore
+    private long player1FinishTime = 0;
+    @JsonIgnore
+    private long player2FinishTime = 0;
+    @JsonIgnore
+    private ScheduledExecutorService checkForDisconnect;
+
 
     @Override
     public boolean equals(Object object) {
@@ -133,7 +185,7 @@ public class Lobby {
                 kickUnreadyPlayers();
                 readyTimer.shutdown();
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 15, TimeUnit.SECONDS);
 
     }
 
@@ -183,26 +235,262 @@ public class Lobby {
 
         if (readyPlayer1 && readyPlayer2) {
             logger.info("Оба игрока в лобби " + nameOfLobby + " подтвердили готовность. Игра начинается");
+            player1.sendMessageToClient("START");
+            player2.sendMessageToClient("START");
+            startGame = System.currentTimeMillis();
+            logger.info("Начало игры в лобби " + nameOfLobby + " равняется " + startGame);
             readyTimer.shutdown();
-            initialazeGameField();
-            startGameLoop();
+            startIndividualGameLoops();
+        }
+
+
+    }
+
+
+    /**
+     * Игровой цикл для каждого игрока
+     */
+    private void startIndividualGameLoops() {
+        initialazeGameField();
+        player1Timer = Executors.newSingleThreadScheduledExecutor();
+        player2Timer = Executors.newSingleThreadScheduledExecutor();
+        checkForDisconnect = Executors.newSingleThreadScheduledExecutor();
+
+
+        logger.info("Запускаются игровые циклы для каждого игрока");
+        player1Timer.scheduleAtFixedRate(() -> {
+            if (isStartingGame) {
+                updatePlayerField(player1, player1Field, player1Position);
+                checkPlayerCollision(player1, player1Field, player1Position);
+                checkPlayerFinish(player2, player1Field);
+                logger.info("Отработал  player1Timer");
+            }
+        }, 0, player1Speed, TimeUnit.MILLISECONDS);
+
+        player2Timer.scheduleAtFixedRate(() -> {
+            if (isStartingGame) {
+                updatePlayerField(player2, player2Field, player2Position);
+                checkPlayerCollision(player2, player2Field, player2Position);
+                checkPlayerFinish(player1, player2Field);
+                logger.info("Отработал  player2Timer");
+            }
+        }, 0, player2Speed, TimeUnit.MILLISECONDS);
+
+        checkForDisconnect.scheduleAtFixedRate(() -> {
+            if (isStartingGame) {
+                checkDisconnect();
+            }
+        }, 0, 3, TimeUnit.SECONDS);
+
+    }
+
+    private void checkDisconnect() {
+        logger.info("Проверка на disconnect участников");
+        if (countOfPlayersInLobby == 0) {
+            resetLobby();
+        }
+
+    }
+
+
+    private void checkPlayerCollision(ClientHandler player, List<String> field, int position) {
+        if (!field.isEmpty()) {
+            String currentRow = field.get(0);
+
+            if (currentRow.charAt(position) == 'X') {
+                if (player.equals(player1)) {
+                    logger.info("Скорость игрока " + player1.getUsername() + " в лобби " + this.id + " замедлилась");
+                    player1Speed = 2000;
+                    player1SpeedResetTime = System.currentTimeMillis() + 5000;
+                } else {
+                    logger.info("Скорость игрока " + player2.getUsername() + " в лобби " + this.id + " замедлилась");
+                    player2Speed = 2000;
+                    player2SpeedResetTime = System.currentTimeMillis() + 5000;
+                }
+
+                player.sendMessageToClient("COLLISION");
+            }
+        }
+
+        if (player.equals(player1)) {
+            logger.info("Скорость игрока " + player1.getUsername() + " в лобби " + this.id + " восстановилась");
+            if (System.currentTimeMillis() > player1SpeedResetTime) {
+                player1Speed = 1000;
+            }
+        } else {
+            logger.info("Скорость игрока " + player2.getUsername() + " в лобби " + this.id + " восстановилась");
+            if (System.currentTimeMillis() > player2SpeedResetTime) {
+                player2Speed = 1000;
+            }
+        }
+
+
+    }
+
+    private void checkPlayerFinish(ClientHandler player, List<String> field) {
+        if (field.size() <= 1) {
+
+            if (player.equals(player1)) {
+                player1FinishTime = System.currentTimeMillis() - startGame;
+
+                if (player2FinishTime == 0) {
+                    if (Objects.nonNull(player1)) {
+                        player1.sendMessageToClient("WIN/" + player1FinishTime + "/" + player2FinishTime);
+                    }
+                } else {
+                    if (Objects.nonNull(player1)) {
+                        player1.sendMessageToClient("LOSE/" + player1FinishTime + "/" + player2FinishTime);
+                    }
+                }
+
+                // теперь его нужно выбросить из лобби
+                this.setPlayer1(null);
+                decrementCountOfPlayersInLobby();
+
+                if (player1 != null) {
+                    player1.setLobby(null);
+                }
+
+                player1Speed = 1000;
+                player1Position = 1;
+                player1SpeedResetTime = 0;
+
+
+                if (player1Timer != null) {
+                    player1Timer.shutdown();
+                }
+
+            } else {
+                player2FinishTime = System.currentTimeMillis() - startGame;
+
+                if (player1FinishTime == 0) {
+                    if (Objects.nonNull(player2)) {
+                        player2.sendMessageToClient("WIN/" + player2FinishTime + "/" + player1FinishTime);
+                    }
+                } else {
+                    if (Objects.nonNull(player2)) {
+                        player2.sendMessageToClient("LOSE/" + player2FinishTime + "/" + player1FinishTime);
+                    }
+                }
+
+
+                // теперь его нужно выбросить из лобби
+                this.setPlayer2(null);
+                decrementCountOfPlayersInLobby();
+
+                if (player2 != null) {
+                    player2.setLobby(null);
+                }
+
+                player2Speed = 1000;
+                player2Position = 1;
+                player2SpeedResetTime = 0;
+
+
+                if (player2Timer != null) {
+                    player2Timer.shutdown();
+                }
+            }
+
+
         }
     }
 
-    /**
-     * Игровой цикл
-     */
-    private void startGameLoop() {
+    private void resetLobby() {
+        logger.info("Происходит reset lobby с id = " + this.id);
+        isStartingGame = false;
+        player1Field.clear();
+        player2Field.clear();
+        player1Position = 1;
+        player2Position = 1;
+        player1Speed = 1000;
+        player2Speed = 1000;
+        player1SpeedResetTime = 0;
+        player2SpeedResetTime = 0;
+        player1FinishTime = 0;
+        player2FinishTime = 0;
+        countOfPlayersInLobby = 0;
+        this.setPlayer1(null);
+        this.setPlayer2(null);
+        player1.setLobby(null);
+        player2.setLobby(null);
+        startGame = 0;
+
+        if (player1Timer != null) {
+            player1Timer.shutdown();
+        }
+        if (player2Timer != null) {
+            player2Timer.shutdown();
+        }
+
+        if (checkForDisconnect != null) {
+            checkForDisconnect.shutdown();
+        }
+    }
+
+    private void updatePlayerField(ClientHandler player, List<String> field, int position) {
+        logger.info("Происходит обновление поля для " + player.getUsername());
+        if (!field.isEmpty()) {
+            field.remove(0);
+            field.add(generateRow());
+        }
+
+        player.sendMessageToClient("UPDATE_FIELD/" + String.join(";", field) + "/" + position);
+    }
+
+    public void movePlayerLeft(ClientHandler clientHandler) {
+        if (clientHandler.equals(player1)) {
+            player1Position = Math.max(0, player1Position - 1);
+            logger.info("Позиция игрока " + player1.getUsername() + " " + player1Position);
+        } else if (clientHandler.equals(player2)) {
+            player2Position = Math.max(0, player2Position - 1);
+            logger.info("Позиция игрока " + player2.getUsername() + " " + player2Position);
+        }
+
+    }
+
+    public void movePlayerRight(ClientHandler clientHandler) {
+        if (clientHandler.equals(player1)) {
+            player1Position = Math.min(2, player1Position + 1);
+            logger.info("Позиция игрока " + player1.getUsername() + " " + player1Position);
+        } else if (clientHandler.equals(player2)) {
+            player2Position = Math.min(2, player2Position + 1);
+            logger.info("Позиция игрока " + player2.getUsername() + " " + player2Position);
+        }
     }
 
     /**
      * Инициализация игрового поля
      */
     private void initialazeGameField() {
+        logger.info("Инициализируются поля для игры в лобби " + this.id);
+        for (int i = 0; i < 10; i++) {
+            logger.info("Инициализация для i = " + i);
+            String row = generateRow();
+            player1Field.add(row);
+            player2Field.add(row);
+        }
+
     }
 
+    private String generateRow() {
 
-    public void handlePlayerDisconnect(ClientHandler clientHandler) {
+        StringBuilder row = new StringBuilder();
 
+        // с вероятностью 30 процентов генерируем препятствие
+        if (Math.random() < 0.3) {
+            int randomNumber = (int) (Math.random() * 3) + 1;
+            logger.info("Индекс - " + randomNumber);
+            for (int i = 1; i <= 3; i++) {
+                if (i == randomNumber) {
+                    row.append("X");
+                } else {
+                    row.append(" ");
+                }
+            }
+        }
+
+        return row.toString();
     }
+
 }
