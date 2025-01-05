@@ -11,6 +11,7 @@ import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.Executors;
@@ -264,16 +265,21 @@ public class Lobby {
 
 
     public synchronized void sendFinishTime(double finishTime, ClientHandler clientHandler) {
+        clientHandler.updateTime(finishTime);
+
         if (clientHandler.equals(player1)) {
+
             finishPlayer1 = finishTime;
             if (finishPlayer2 == -1) {
                 // это означает, что второй игрок ещё проезжает трассу
                 player1.sendMessageToClient("WIN/" + finishTime + "/" + "NO");
+                player1.updateWins();
             } else {
                 if (finishPlayer1 > finishPlayer2) {
                     player1.sendMessageToClient("LOSE/" + finishTime + "/" + finishPlayer2);
                 } else if (finishPlayer1 < finishPlayer2) {
                     player1.sendMessageToClient("WIN/" + finishTime + "/" + finishPlayer2);
+                    player1.updateWins();
                 } else {
                     player1.sendMessageToClient("DRAW/" + finishTime + "/" + finishPlayer2);
                 }
@@ -283,6 +289,7 @@ public class Lobby {
                 playerCheckTimer.shutdown();
                 isStartingGame = false;
             }
+
 
             // теперь нужно кикнуть этого игрока из лобби
             player1.setLobby(null);
@@ -295,11 +302,13 @@ public class Lobby {
             if (finishPlayer1 == -1) {
                 // это означает, что первыый игрок ещё проезжает трассу
                 player2.sendMessageToClient("WIN/" + finishTime + "/" + "NO");
+                player2.updateWins();
             } else {
                 if (finishPlayer2 > finishPlayer1) {
                     player2.sendMessageToClient("LOSE/" + finishTime + "/" + finishPlayer1);
                 } else if (finishPlayer2 < finishPlayer1) {
                     player2.sendMessageToClient("WIN/" + finishTime + "/" + finishPlayer1);
+                    player2.updateWins();
                 } else {
                     player2.sendMessageToClient("DRAW/" + finishTime + "/" + finishPlayer1);
                 }

@@ -2,6 +2,7 @@ package DM.ServerRally.executor;
 
 import DM.ServerRally.controllers.GameManager;
 import DM.ServerRally.lobby.Lobby;
+import DM.ServerRally.multiplaystats.service.MultiplayStatsService;
 import DM.ServerRally.server.Server;
 import DM.ServerRally.user.model.User;
 import DM.ServerRally.user.service.UserService;
@@ -32,13 +33,16 @@ public class ClientHandler extends Thread {
     private String username;
     private String password;
     private GameManager gameManager;
+    private MultiplayStatsService multiplayStatsService;
     private Lobby lobby;
 
 
-    public ClientHandler(UserService userService, GameManager gameManager) {
+    public ClientHandler(UserService userService, GameManager gameManager, MultiplayStatsService multiplayStatsService) {
         this.userService = userService;
         this.gameManager = gameManager;
+        this.multiplayStatsService = multiplayStatsService;
     }
+
 
     public boolean initializeSocket(Socket clientSocket) {
         this.clientSocket = clientSocket;
@@ -140,7 +144,6 @@ public class ClientHandler extends Thread {
                         }
                     }
                 } else if (message.equals("READY")) {
-                    // TODO: лобби может быть null'ом, рассмотреть этот момент
 
                     if (Objects.isNull(lobby)) {
                         // значит lobby была занулена
@@ -158,8 +161,18 @@ public class ClientHandler extends Thread {
                     String[] parts = message.split("/");
                     double finishTime = Double.parseDouble(parts[1]) / 1000; // время в секундах
                     this.lobby.sendFinishTime(finishTime, this);
-                }
+                } else if (message.equals("MULTILPLAY_TOP_SCORES_LIST_BY_WINS")) {
+                    String jsonTopScoresListByWins = multiplayStatsService.getTopScoresByWinsJson();
 
+                    output.println("MULTILPLAY_TOP_SCORES_LIST_BY_WINS " + jsonTopScoresListByWins);
+                    logger.info("Отправлено сообщение " + "MULTILPLAY_TOP_SCORES_LIST_BY_WINS " + jsonTopScoresListByWins + " клиенту " + clientSocket.getInetAddress());
+
+                } else if (message.equals("MULTILPLAY_TOP_SCORES_LIST_BY_TIME")) {
+                    String jsonTopScoresListByTime = multiplayStatsService.getTopScoresByTimeJson();
+
+                    output.println("MULTILPLAY_TOP_SCORES_LIST_BY_TIME " + jsonTopScoresListByTime);
+                    logger.info("Отправлено сообщение " + "MULTILPLAY_TOP_SCORES_LIST_BY_TIME " + jsonTopScoresListByTime + " клиенту " + clientSocket.getInetAddress());
+                }
 
             }
 
@@ -219,5 +232,13 @@ public class ClientHandler extends Thread {
     @Override
     public int hashCode() {
         return Objects.hash(clientSocket.getInetAddress());
+    }
+
+    public void updateTime(double finishTime) {
+        multiplayStatsService.updateTime(this.username, finishTime);
+    }
+
+    public void updateWins() {
+        multiplayStatsService.updateWins(this.username);
     }
 }

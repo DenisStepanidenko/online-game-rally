@@ -1,5 +1,6 @@
 package DM.ServerRally.user.model;
 
+import DM.ServerRally.multiplaystats.model.MultiplayStats;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -16,4 +17,7 @@ public class User {
     private Integer id;
     private String username;
     private String password;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private MultiplayStats multiplayStats;
 }
