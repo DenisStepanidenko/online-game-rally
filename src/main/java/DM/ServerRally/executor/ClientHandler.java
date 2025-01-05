@@ -197,7 +197,6 @@ public class ClientHandler extends Thread {
     public void sendMessageToClient(String message) {
         try {
             output.println(message);
-            output.flush();
             logger.info("Отправлено сообщение " + message + " клиенту " + clientSocket.getInetAddress());
         } catch (Exception ex) {
             logger.info("Произошла ошибка при отправке сообщения " + message + " клиенту " + clientSocket.getInetAddress());
