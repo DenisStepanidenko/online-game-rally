@@ -28,7 +28,7 @@ public class GameManager {
      */
     public void initializeStartLobbies() {
         List<Lobby> lobbyList = new ArrayList<>();
-        for (int i = 1; i <= 10; i++) {
+        for (int i = 1; i <= 5; i++) {
             lobbyList.add(new Lobby("Lobby " + i));
             logger.info("Создание Лобби " + i);
         }

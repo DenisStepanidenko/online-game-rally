@@ -154,6 +154,10 @@ public class ClientHandler extends Thread {
                         logger.info("Клиент " + clientSocket.getInetAddress() + " подтвердил готовность игры в лобби " + lobby.getNameOfLobby());
                     }
 
+                } else if (message.startsWith("FINISH")) {
+                    String[] parts = message.split("/");
+                    double finishTime = Double.parseDouble(parts[1]) / 1000; // время в секундах
+                    this.lobby.sendFinishTime(finishTime, this);
                 }
 
 

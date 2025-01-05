@@ -1,14 +1,18 @@
 package DM.ServerRally.lobby;
 
 import DM.ServerRally.executor.ClientHandler;
+import DM.ServerRally.state.GameState;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +24,15 @@ import java.util.concurrent.TimeUnit;
 @Getter
 @Setter
 public class Lobby {
+
+    /**
+     * Нужно, чтобы на фоне проверять количество игроков
+     * Нужен на случай, если два игрока отключатся во время игры, тогда делаем reset lobby
+     */
+    @JsonIgnore
+    private ScheduledExecutorService playerCheckTimer;
+    @JsonIgnore
+    private final ObjectMapper objectMapper = new ObjectMapper();
     @JsonIgnore
     private final Logger logger = LoggerFactory.getLogger(Lobby.class);
     @JsonIgnore
@@ -112,6 +125,11 @@ public class Lobby {
         return this.countOfPlayersInLobby == 2;
     }
 
+    @JsonIgnore
+    private double finishPlayer1 = -1;
+    @JsonIgnore
+    private double finishPlayer2 = -1;
+
 
     public void startGame() {
         isStartingGame = true;
@@ -184,25 +202,119 @@ public class Lobby {
         if (readyPlayer1 && readyPlayer2) {
             logger.info("Оба игрока в лобби " + nameOfLobby + " подтвердили готовность. Игра начинается");
             readyTimer.shutdown();
-            initialazeGameField();
-            startGameLoop();
+            GameState startState = initializeGameField();
+            try {
+                String startStateJson = objectMapper.writeValueAsString(startState);
+                player1.sendMessageToClient("START " + startStateJson);
+                player2.sendMessageToClient("START " + startStateJson);
+
+                // проверяем на фоне количество игроков
+                playerCheckTimer = Executors.newSingleThreadScheduledExecutor();
+                playerCheckTimer.scheduleAtFixedRate(this::checkPlayerCount, 0, 5, TimeUnit.SECONDS);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+
+
         }
     }
 
-    /**
-     * Игровой цикл
-     */
-    private void startGameLoop() {
+    private void checkPlayerCount() {
+        if (countOfPlayersInLobby == 0) {
+            this.setPlayer1(null);
+            this.setPlayer2(null);
+            finishPlayer1 = -1;
+            finishPlayer2 = -1;
+            readyPlayer1 = false;
+            readyPlayer2 = false;
+            isStartingGame = false;
+            playerCheckTimer.shutdown();
+        }
     }
+
 
     /**
      * Инициализация игрового поля
      */
-    private void initialazeGameField() {
+    private GameState initializeGameField() {
+        GameState gameState = new GameState();
+
+        int[][] gameField = new int[50][38];
+
+
+        for (int i = 0; i < 50; i++) {
+            for (int j = 0; j < 38; j++) {
+                gameField[i][j] = 0;
+            }
+        }
+
+        // генерация препятствий
+        Random random = new Random();
+        int obstacleCount = (int) (50 * 38 * 0.2); // 20% клеток - препятствия
+        for (int i = 0; i < obstacleCount; i++) {
+            int x = random.nextInt(50);
+            int y = random.nextInt(38);
+            gameField[x][y] = 1;
+        }
+
+        gameState.setGameField(gameField);
+
+        return gameState;
     }
 
 
-    public void handlePlayerDisconnect(ClientHandler clientHandler) {
+    public synchronized void sendFinishTime(double finishTime, ClientHandler clientHandler) {
+        if (clientHandler.equals(player1)) {
+            finishPlayer1 = finishTime;
+            if (finishPlayer2 == -1) {
+                // это означает, что второй игрок ещё проезжает трассу
+                player1.sendMessageToClient("WIN/" + finishTime + "/" + "NO");
+            } else {
+                if (finishPlayer1 > finishPlayer2) {
+                    player1.sendMessageToClient("LOSE/" + finishTime + "/" + finishPlayer2);
+                } else if (finishPlayer1 < finishPlayer2) {
+                    player1.sendMessageToClient("WIN/" + finishTime + "/" + finishPlayer2);
+                } else {
+                    player1.sendMessageToClient("DRAW/" + finishTime + "/" + finishPlayer2);
+                }
 
+                finishPlayer1 = -1;
+                finishPlayer2 = -1;
+                playerCheckTimer.shutdown();
+                isStartingGame = false;
+            }
+
+            // теперь нужно кикнуть этого игрока из лобби
+            player1.setLobby(null);
+            this.setPlayer1(null);
+            readyPlayer1 = false;
+            decrementCountOfPlayersInLobby();
+
+        } else {
+            finishPlayer2 = finishTime;
+            if (finishPlayer1 == -1) {
+                // это означает, что первыый игрок ещё проезжает трассу
+                player2.sendMessageToClient("WIN/" + finishTime + "/" + "NO");
+            } else {
+                if (finishPlayer2 > finishPlayer1) {
+                    player2.sendMessageToClient("LOSE/" + finishTime + "/" + finishPlayer1);
+                } else if (finishPlayer2 < finishPlayer1) {
+                    player2.sendMessageToClient("WIN/" + finishTime + "/" + finishPlayer1);
+                } else {
+                    player2.sendMessageToClient("DRAW/" + finishTime + "/" + finishPlayer1);
+                }
+
+                finishPlayer1 = -1;
+                finishPlayer2 = -1;
+                playerCheckTimer.shutdown();
+                isStartingGame = false;
+            }
+
+            // теперь нужно кикнуть этого игрока из лобби
+            player2.setLobby(null);
+            this.setPlayer2(null);
+            readyPlayer2 = false;
+            decrementCountOfPlayersInLobby();
+        }
     }
 }
