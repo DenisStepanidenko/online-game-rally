@@ -172,6 +172,9 @@ public class ClientHandler extends Thread {
 
                     output.println("MULTILPLAY_TOP_SCORES_LIST_BY_TIME " + jsonTopScoresListByTime);
                     logger.info("Отправлено сообщение " + "MULTILPLAY_TOP_SCORES_LIST_BY_TIME " + jsonTopScoresListByTime + " клиенту " + clientSocket.getInetAddress());
+                } else if (message.equals("RETURN_FROM_PASSWORD")) {
+                    username = null;
+                    password = null;
                 }
 
             }
