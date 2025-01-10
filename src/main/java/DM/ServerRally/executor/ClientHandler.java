@@ -175,6 +175,19 @@ public class ClientHandler extends Thread {
                 } else if (message.equals("RETURN_FROM_PASSWORD")) {
                     username = null;
                     password = null;
+                } else if(message.equals("EXIT_WAITING")){
+                    if (!Objects.isNull(lobby)) {
+                        lobby.decrementCountOfPlayersInLobby();
+                        if (!Objects.isNull(lobby.getPlayer1()) && lobby.getPlayer1().getUsername().equals(username)) {
+                            lobby.setPlayer1(null);
+                        } else {
+                            lobby.setPlayer2(null);
+                        }
+                    }
+                } else if (message.equals("NOT_READY")){
+                    if(Objects.nonNull(lobby)){
+                        lobby.kickPlayer(this);
+                    }
                 }
 
             }

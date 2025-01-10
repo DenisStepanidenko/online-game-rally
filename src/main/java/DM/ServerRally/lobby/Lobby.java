@@ -130,6 +130,10 @@ public class Lobby {
     private double finishPlayer1 = -1;
     @JsonIgnore
     private double finishPlayer2 = -1;
+    @JsonIgnore
+    private boolean isExitPlayer1 = false;
+    @JsonIgnore
+    private boolean isExitPlayer2 = false;
 
 
     public void startGame() {
@@ -173,7 +177,7 @@ public class Lobby {
             decrementCountOfPlayersInLobby();
             decrementCountOfPlayersInLobby();
         } else if (!readyPlayer2) {
-
+            logger.info("Клиент " + player2.getClientSocket().getInetAddress() + " не подтвердил готовность к игре в лобби " + nameOfLobby);
             if (!Objects.isNull(player1)) {
                 player1.sendMessageToClient("LEFT_JOINED");
             }
@@ -181,6 +185,7 @@ public class Lobby {
             this.setPlayer2(null);
             decrementCountOfPlayersInLobby();
         } else {
+            logger.info("Клиент " + player1.getClientSocket().getInetAddress() + " не подтвердил готовность к игре в лобби " + nameOfLobby);
             if (!Objects.isNull(player2)) {
                 player2.sendMessageToClient("LEFT_JOINED");
             }
@@ -200,7 +205,43 @@ public class Lobby {
     private void checkReadyStatus() {
         logger.info("Ожидается подтверждение игроков в лобби " + nameOfLobby);
 
-        if (readyPlayer1 && readyPlayer2) {
+
+        if (isExitPlayer1 || isExitPlayer2) {
+            readyTimer.shutdown();
+            // значит кто-то из игроков нажал выход
+            if (isExitPlayer1 && isExitPlayer2) {
+                logger.info("Клиент " + player1.getClientSocket().getInetAddress() + " не подтвердил готовность к игре в лобби " + nameOfLobby);
+                logger.info("Клиент " + player2.getClientSocket().getInetAddress() + " не подтвердил готовность к игре в лобби " + nameOfLobby);
+                player1.setLobby(null);
+                player2.setLobby(null);
+                this.setPlayer1(null);
+                this.setPlayer2(null);
+                decrementCountOfPlayersInLobby();
+                decrementCountOfPlayersInLobby();
+            } else if (isExitPlayer1) {
+                if (!Objects.isNull(player1)) {
+                    player1.sendMessageToClient("LEFT_JOINED");
+                }
+                player2.setLobby(null);
+                this.setPlayer2(null);
+                decrementCountOfPlayersInLobby();
+            } else {
+                if (!Objects.isNull(player2)) {
+                    player2.sendMessageToClient("LEFT_JOINED");
+                }
+                player1.setLobby(null);
+                this.setPlayer1(null);
+                decrementCountOfPlayersInLobby();
+            }
+
+
+            logger.info("Лобби " + nameOfLobby + " вернулось в режим ожидания игроков");
+            isStartingGame = false;
+            readyPlayer1 = false;
+            readyPlayer2 = false;
+            isExitPlayer1 = false;
+            isExitPlayer2 = false;
+        } else if (readyPlayer1 && readyPlayer2) {
             logger.info("Оба игрока в лобби " + nameOfLobby + " подтвердили готовность. Игра начинается");
             readyTimer.shutdown();
             GameState startState = initializeGameField();
@@ -324,6 +365,19 @@ public class Lobby {
             this.setPlayer2(null);
             readyPlayer2 = false;
             decrementCountOfPlayersInLobby();
+        }
+    }
+
+    /**
+     * Метод для оповещения игрока, если он не подтвердил готовность к игре (принудительно нажав на кнопку на клиенте)
+     *
+     * @param clientHandler игрок
+     */
+    public void kickPlayer(ClientHandler clientHandler) {
+        if (clientHandler.equals(player1)) {
+            isExitPlayer1 = true;
+        } else {
+            isExitPlayer2 = true;
         }
     }
 }
