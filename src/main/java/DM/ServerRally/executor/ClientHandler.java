@@ -188,6 +188,10 @@ public class ClientHandler extends Thread {
                     if(Objects.nonNull(lobby)){
                         lobby.kickPlayer(this);
                     }
+                } else if (message.equals("DISCONNECT")){
+                    output.println("DISCONNECT_ACK");
+                    logger.info("Отправлено сообщение DISCONNECT_ACK клиенту " + clientSocket.getInetAddress());
+                    break;
                 }
 
             }

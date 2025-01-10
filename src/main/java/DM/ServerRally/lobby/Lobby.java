@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 
@@ -134,7 +135,8 @@ public class Lobby {
     private boolean isExitPlayer1 = false;
     @JsonIgnore
     private boolean isExitPlayer2 = false;
-
+    @JsonIgnore
+    private ScheduledFuture<?> schedule;
 
     public void startGame() {
         isStartingGame = true;
@@ -151,10 +153,10 @@ public class Lobby {
         readyTimer.scheduleAtFixedRate(this::checkReadyStatus, 0, 1, TimeUnit.SECONDS);
 
         // если в течение 30 секунд кто-то не подтвердил, то нужно вернуть лобби в режим ожидания
-        readyTimer.schedule(() -> {
+        schedule = readyTimer.schedule(() -> {
             if (!readyPlayer1 || !readyPlayer2) {
                 kickUnreadyPlayers();
-                readyTimer.shutdown();
+                readyTimer.shutdownNow();
             }
         }, 30, TimeUnit.SECONDS);
 
@@ -199,7 +201,8 @@ public class Lobby {
         isStartingGame = false;
         readyPlayer1 = false;
         readyPlayer2 = false;
-
+        isExitPlayer1 = false;
+        isExitPlayer2 = false;
     }
 
     private void checkReadyStatus() {
@@ -207,7 +210,11 @@ public class Lobby {
 
 
         if (isExitPlayer1 || isExitPlayer2) {
-            readyTimer.shutdown();
+            readyTimer.shutdownNow();
+            if (schedule != null && !schedule.isDone()) {
+                schedule.cancel(true);
+            }
+
             // значит кто-то из игроков нажал выход
             if (isExitPlayer1 && isExitPlayer2) {
                 logger.info("Клиент " + player1.getClientSocket().getInetAddress() + " не подтвердил готовность к игре в лобби " + nameOfLobby);
@@ -219,18 +226,18 @@ public class Lobby {
                 decrementCountOfPlayersInLobby();
                 decrementCountOfPlayersInLobby();
             } else if (isExitPlayer1) {
-                if (!Objects.isNull(player1)) {
-                    player1.sendMessageToClient("LEFT_JOINED");
-                }
-                player2.setLobby(null);
-                this.setPlayer2(null);
-                decrementCountOfPlayersInLobby();
-            } else {
                 if (!Objects.isNull(player2)) {
                     player2.sendMessageToClient("LEFT_JOINED");
                 }
                 player1.setLobby(null);
                 this.setPlayer1(null);
+                decrementCountOfPlayersInLobby();
+            } else {
+                if (!Objects.isNull(player1)) {
+                    player1.sendMessageToClient("LEFT_JOINED");
+                }
+                player2.setLobby(null);
+                this.setPlayer2(null);
                 decrementCountOfPlayersInLobby();
             }
 
@@ -243,7 +250,10 @@ public class Lobby {
             isExitPlayer2 = false;
         } else if (readyPlayer1 && readyPlayer2) {
             logger.info("Оба игрока в лобби " + nameOfLobby + " подтвердили готовность. Игра начинается");
-            readyTimer.shutdown();
+            readyTimer.shutdownNow();
+            if (schedule != null && !schedule.isDone()) {
+                schedule.cancel(true);
+            }
             GameState startState = initializeGameField();
             try {
                 String startStateJson = objectMapper.writeValueAsString(startState);
@@ -257,12 +267,12 @@ public class Lobby {
                 throw new RuntimeException(e);
             }
 
-
         }
     }
 
     private void checkPlayerCount() {
         if (countOfPlayersInLobby == 0) {
+            logger.info("Произошёл reset lobby " + nameOfLobby);
             this.setPlayer1(null);
             this.setPlayer2(null);
             finishPlayer1 = -1;
@@ -270,7 +280,9 @@ public class Lobby {
             readyPlayer1 = false;
             readyPlayer2 = false;
             isStartingGame = false;
-            playerCheckTimer.shutdown();
+            isExitPlayer1 = false;
+            isExitPlayer2 = false;
+            playerCheckTimer.shutdownNow();
         }
     }
 
